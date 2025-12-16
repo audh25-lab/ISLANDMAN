@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Island Man — Replay Viewer</title>
+<style>
+html,body{
+  margin:0;
+  background:#000;
+  color:#ff0;
+  font-family:monospace
+}
+canvas{
+  display:block;
+  margin:auto;
+  background:#111
+}
+#ui{
+  position:fixed;
+  top:10px;
+  left:10px
+}
+#controls{
+  position:fixed;
+  bottom:10px;
+  left:50%;
+  transform:translateX(-50%);
+}
+input[type=range]{width:300px}
+</style>
+</head>
+<body>
+
+<div id="ui">Replay Viewer</div>
+<canvas id="replay" width="600" height="600"></canvas>
+
+<div id="controls">
+  <button id="play">Play</button>
+  <button id="pause">Pause</button>
+  <input id="timeline" type="range" min="0" max="0" value="0">
+</div>
+
+<script type="module">
+/* ============================================================
+   Island Man MMO – Replay Client
+   File: client/replay.html
+============================================================ */
+
+const SERVER = "ws://localhost:8080";
+
+/* =========================
+   STATE
+========================= */
+const canvas = document.getElementById("replay");
+const ctx = canvas.getContext("2d");
+const ui = document.getElementById("ui");
+const slider = document.getElementById("timeline");
+
+let socket;
+let replay = [];
+let frameIndex = 0;
+let playing = false;
+
+/* =========================
+   CONNECT
+========================= */
+socket = new WebSocket(SERVER);
+
+socket.onopen = () => {
+  socket.send(JSON.stringify({
+    v: 1,
+    t: "handshake",
+    d: {
+      version: 1,
+      playerId: "replay-" + crypto.randomUUID()
+    }
+  }));
+};
+
+socket.onmessage = e => {
+  const msg = JSON.parse(e.data);
+
+  switch (msg.t) {
+    case "handshake":
+      ui.textContent = "Requesting replay…";
+      socket.send(JSON.stringify({
+        t: "replay_request"
+      }));
+      break;
+
+    case "replay_data":
+      replay = msg.d.frames;
+      slider.max = replay.length - 1;
+      ui.textContent = `Replay loaded (${replay.length} frames)`;
+      break;
+  }
+};
+
+/* =========================
+   CONTROLS
+========================= */
+document.getElementById("play").onclick = () => playing = true;
+document.getElementById("pause").onclick = () => playing = false;
+
+slider.oninput = e => {
+  frameIndex = Number(e.target.value);
+  renderFrame();
+};
+
+/* =========================
+   RENDER
+========================= */
+function renderFrame() {
+  if (!replay[frameIndex]) return;
+
+  ctx.clearRect(0,0,600,600);
+  const state = replay[frameIndex].state;
+
+  for (const id in state) {
+    const p = state[id];
+    ctx.fillStyle = "#ff0";
+    ctx.beginPath();
+    ctx.arc(
+      300 + p.x * 10,
+      300 + p.z * 10,
+      6,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  }
+}
+
+/* =========================
+   LOOP
+========================= */
+function loop() {
+  if (playing && replay.length) {
+    frameIndex++;
+    if (frameIndex >= replay.length) {
+      frameIndex = replay.length - 1;
+      playing = false;
+    }
+    slider.value = frameIndex;
+    renderFrame();
+  }
+
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
