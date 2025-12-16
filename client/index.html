@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Island Man — Player</title>
+<style>
+html,body{margin:0;background:#000;color:#0f0;font-family:monospace}
+canvas{display:block;margin:auto;background:#111}
+#ui{position:fixed;top:10px;left:10px}
+</style>
+</head>
+<body>
+<div id="ui">Connecting…</div>
+<canvas id="game" width="600" height="600"></canvas>
+
+<script type="module">
+/* ============================================================
+   Island Man MMO – Player Client
+   File: client/index.html
+============================================================ */
+
+const SERVER = "ws://localhost:8080";
+const TICK_RATE = 60;
+
+/* =========================
+   STATE
+========================= */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const ui = document.getElementById("ui");
+
+const playerId = crypto.randomUUID();
+let socket;
+let frame = 0;
+
+let localState = { x: 0, z: 0 };
+let serverState = {};
+let smoothState = {};
+
+const inputHistory = new Map();
+
+/* =========================
+   CONNECT
+========================= */
+socket = new WebSocket(SERVER);
+
+socket.onopen = () => {
+  socket.send(JSON.stringify({
+    v: 1,
+    t: "handshake",
+    d: { version: 1, playerId }
+  }));
+};
+
+socket.onmessage = e => {
+  const msg = JSON.parse(e.data);
+
+  switch (msg.t) {
+    case "handshake":
+      ui.textContent = "Connected. Joining queue…";
+      socket.send(JSON.stringify({ t: "join_queue" }));
+      break;
+
+    case "match_found":
+      ui.textContent = "Match found!";
+      break;
+
+    case "snapshot":
+      reconcile(msg.d.frame, msg.d.state);
+      break;
+  }
+};
+
+/* =========================
+   INPUT
+========================= */
+const keys = {};
+onkeydown = e => keys[e.key] = true;
+onkeyup = e => keys[e.key] = false;
+
+function readInput() {
+  return {
+    dx: (keys.a ? -1 : 0) + (keys.d ? 1 : 0),
+    dz: (keys.w ? -1 : 0) + (keys.s ? 1 : 0)
+  };
+}
+
+/* =========================
+   PREDICTION
+========================= */
+function predict(input) {
+  localState.x += input.dx * 0.1;
+  localState.z += input.dz * 0.1;
+}
+
+/* =========================
+   RECONCILIATION
+========================= */
+function reconcile(serverFrame, state) {
+  serverState = state;
+
+  // Snap authoritative position for self
+  if (state[playerId]) {
+    localState.x = state[playerId].x;
+    localState.z = state[playerId].z;
+  }
+
+  // Replay inputs after server frame
+  for (let f = serverFrame + 1; f < frame; f++) {
+    const input = inputHistory.get(f);
+    if (input) predict(input);
+  }
+}
+
+/* =========================
+   SMOOTHING
+========================= */
+function smooth() {
+  for (const id in serverState) {
+    if (!smoothState[id]) smoothState[id] = serverState[id];
+
+    smoothState[id].x +=
+      (serverState[id].x - smoothState[id].x) * 0.2;
+    smoothState[id].z +=
+      (serverState[id].z - smoothState[id].z) * 0.2;
+  }
+}
+
+/* =========================
+   RENDER
+========================= */
+function render() {
+  ctx.clearRect(0,0,600,600);
+
+  for (const id in smoothState) {
+    const p = smoothState[id];
+    ctx.fillStyle = id === playerId ? "#0f0" : "#f00";
+    ctx.beginPath();
+    ctx.arc(300 + p.x * 10, 300 + p.z * 10, 8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/* =========================
+   LOOP
+========================= */
+function loop() {
+  const input = readInput();
+  inputHistory.set(frame, input);
+
+  predict(input);
+
+  socket.readyState === 1 &&
+    socket.send(JSON.stringify({
+      t: "input",
+      d: { ...input, frame }
+    }));
+
+  smooth();
+  render();
+
+  frame++;
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
