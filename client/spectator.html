@@ -19,7 +19,7 @@ canvas{display:block;margin:auto;background:#111}
    File: client/spectator.html
 ============================================================ */
 
-const SERVER = "ws://localhost:8080";
+const SERVER = location.origin.replace("https", "wss");
 
 /* =========================
    STATE
