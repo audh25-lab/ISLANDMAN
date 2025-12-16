@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Island Man — Spectator</title>
+<style>
+html,body{margin:0;background:#000;color:#0ff;font-family:monospace}
+canvas{display:block;margin:auto;background:#111}
+#ui{position:fixed;top:10px;left:10px}
+</style>
+</head>
+<body>
+<div id="ui">Spectator Mode</div>
+<canvas id="view" width="600" height="600"></canvas>
+
+<script type="module">
+/* ============================================================
+   Island Man MMO – Spectator Client
+   File: client/spectator.html
+============================================================ */
+
+const SERVER = "ws://localhost:8080";
+
+/* =========================
+   STATE
+========================= */
+const canvas = document.getElementById("view");
+const ctx = canvas.getContext("2d");
+const ui = document.getElementById("ui");
+
+const spectatorId = "spectator-" + crypto.randomUUID();
+let socket;
+
+let state = {};
+let smooth = {};
+
+let cam = {
+  x: 0,
+  z: 0,
+  zoom: 10
+};
+
+/* =========================
+   CONNECT
+========================= */
+socket = new WebSocket(SERVER);
+
+socket.onopen = () => {
+  socket.send(JSON.stringify({
+    v: 1,
+    t: "handshake",
+    d: { version: 1, playerId: spectatorId }
+  }));
+};
+
+socket.onmessage = e => {
+  const msg = JSON.parse(e.data);
+
+  switch (msg.t) {
+    case "handshake":
+      ui.textContent = "Spectating…";
+      socket.send(JSON.stringify({ t: "spectate" }));
+      break;
+
+    case "snapshot":
+      state = msg.d.state;
+      break;
+  }
+};
+
+/* =========================
+   CAMERA CONTROLS
+========================= */
+onwheel = e => {
+  cam.zoom += e.deltaY * 0.01;
+  cam.zoom = Math.max(2, Math.min(40, cam.zoom));
+};
+
+onmousemove = e => {
+  if (e.buttons !== 1) return;
+  cam.x -= e.movementX / cam.zoom;
+  cam.z -= e.movementY / cam.zoom;
+};
+
+/* =========================
+   SMOOTHING
+========================= */
+function smoothState() {
+  for (const id in state) {
+    if (!smooth[id]) smooth[id] = { ...state[id] };
+
+    smooth[id].x += (state[id].x - smooth[id].x) * 0.2;
+    smooth[id].z += (state[id].z - smooth[id].z) * 0.2;
+  }
+}
+
+/* =========================
+   RENDER
+========================= */
+function render() {
+  ctx.clearRect(0,0,600,600);
+
+  for (const id in smooth) {
+    const p = smooth[id];
+
+    ctx.fillStyle = "#0ff";
+    ctx.beginPath();
+    ctx.arc(
+      300 + (p.x - cam.x) * cam.zoom,
+      300 + (p.z - cam.z) * cam.zoom,
+      6,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  }
+}
+
+/* =========================
+   LOOP
+========================= */
+function loop() {
+  smoothState();
+  render();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
