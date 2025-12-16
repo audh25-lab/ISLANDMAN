@@ -46,7 +46,7 @@ input[type=range]{width:300px}
    File: client/replay.html
 ============================================================ */
 
-const SERVER = "ws://localhost:8080";
+const SERVER = location.origin.replace("https", "wss");
 
 /* =========================
    STATE
