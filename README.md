@@ -1,25 +1,39 @@
-# # Island Man
+# Island Man
 
-Island Man is a real-time multiplayer island-based action game with
-MMO-style backend architecture, matchmaking, ranked ladder, replays,
-and spectator support.
+Island Man is a real-time multiplayer island-based game with
+MMO-style architecture.
 
 ## Features
 - Authoritative server
 - Client-side prediction
-- Ranked ladder
+- Matchmaking & ranked ladder
 - Replays & spectator mode
 - Anti-cheat & interest management
 
+## Tech Stack
+- Node.js
+- WebSockets
+- HTML5 Canvas
+- Deterministic netcode
+
 ## Requirements
 - Node.js 18+
-- Modern browser (Chrome / Edge / Firefox)
+- Modern browser
 
 ## Install
 npm install
 
 ## Run Server
-node services/server.js
+npm start
 
 ## Run Client
-Open client/index.html in browser
+Open:
+client/index.html
+
+## Spectator
+Open:
+client/spectator.html
+
+## Replay Viewer
+Open:
+client/replay.html
